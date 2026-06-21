@@ -11,7 +11,7 @@ YOUR_CID = 1503970
 YOUR_CALLSIGN = "RLTS3"
 DISCORD_CHANNEL_ID = 1492743633982455874
 
-last_seen = False
+last_online = False
 
 @bot.event
 async def on_ready():
@@ -20,37 +20,44 @@ async def on_ready():
 
 @tasks.loop(seconds=30)
 async def check_vatsim():
-    global last_seen
+    global last_online
     try:
         response = requests.get("https://data.vatsim.net/v3/vatsim-data.json", timeout=10)
         response.raise_for_status()
         data = response.json()
 
+        current_online = False
+        pilot_data = None
+
         for pilot in data.get("pilots", []):
             if pilot.get("cid") == YOUR_CID or pilot.get("callsign", "").upper() == YOUR_CALLSIGN.upper():
-                callsign = pilot.get("callsign", YOUR_CALLSIGN)
-                aircraft = pilot.get("flight_plan", {}).get("aircraft_short", "Unknown")
-                departure = pilot.get("flight_plan", {}).get("departure", "Unknown")
-                arrival = pilot.get("flight_plan", {}).get("arrival", "Unknown")
-                altitude = pilot.get("altitude", 0)
+                current_online = True
+                pilot_data = pilot
+                break
 
-                channel = bot.get_channel(DISCORD_CHANNEL_ID)
-                if channel and not last_seen:
-                    if departure != "Unknown" and arrival != "Unknown":
-                        msg = f"🚀 **{callsign}** is now online!\n" \
-                              f"**Route:** {departure} → {arrival}\n" \
-                              f"**Aircraft:** {aircraft}\n" \
-                              f"**Altitude:** {altitude:,} ft"
-                    else:
-                        msg = f"🚀 **{callsign}** has logged onto VATSIM!"
+        channel = bot.get_channel(DISCORD_CHANNEL_ID)
+        if not channel:
+            return
 
-                    await channel.send(msg)
-                    last_seen = True
-                return  # Found the user
+        if current_online and not last_online:
+            # Just logged on
+            callsign = pilot_data.get("callsign", YOUR_CALLSIGN)
+            fp = pilot_data.get("flight_plan", {})
+            departure = fp.get("departure", "Unknown")
+            arrival = fp.get("arrival", "Unknown")
+            aircraft = fp.get("aircraft_short", "Unknown")
+            altitude = pilot_data.get("altitude", 0)
 
-        # Not online
-        if last_seen:
-            last_seen = False
+            if departure != "Unknown" and arrival != "Unknown":
+                msg = f"🚀 **{callsign}** has logged onto VATSIM!\n" \
+                      f"**Flight:** {departure} → {arrival}\n" \
+                      f"**Aircraft:** {aircraft} | **Altitude:** {altitude:,} ft"
+            else:
+                msg = f"🚀 **{callsign}** has logged onto VATSIM!"
+
+            await channel.send(msg)
+
+        last_online = current_online
 
     except Exception as e:
         print(f"Error: {e}")
