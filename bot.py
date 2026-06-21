@@ -11,16 +11,13 @@ YOUR_CID = 1503970
 YOUR_CALLSIGN = "RLTS3"
 DISCORD_CHANNEL_ID = 1492743633982455874
 
-status_message = None
-
 @bot.event
 async def on_ready():
     print(f'{bot.user} is online!')
     check_vatsim.start()
 
-@tasks.loop(seconds=15)
+@tasks.loop(seconds=20)
 async def check_vatsim():
-    global status_message
     try:
         response = requests.get("https://data.vatsim.net/v3/vatsim-data.json", timeout=10)
         data = response.json()
@@ -53,16 +50,14 @@ async def check_vatsim():
             embed.set_footer(text="RLTS • No activity")
 
         channel = bot.get_channel(DISCORD_CHANNEL_ID)
-        if not channel:
-            return
+        if channel:
+            # Delete old messages first
+            async for message in channel.history(limit=10):
+                if message.author == bot.user and "RLTS Fleet Live Status" in message.embeds[0].title if message.embeds else False:
+                    await message.delete()
 
-        if status_message:
-            try:
-                await status_message.edit(embed=embed)
-            except:
-                status_message = await channel.send(embed=embed)
-        else:
-            status_message = await channel.send(embed=embed)
+            # Send new one
+            await channel.send(embed=embed)
 
     except Exception as e:
         print(f"Error: {e}")
