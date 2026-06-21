@@ -9,7 +9,7 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 # === YOUR DETAILS ===
 YOUR_CID = 1503970
 YOUR_CALLSIGN = "RLTS3"
-DISCORD_CHANNEL_ID = 1492743633982455874   # General chat channel ID
+DISCORD_CHANNEL_ID = 1492743633982455874
 
 last_seen = False
 
@@ -25,20 +25,32 @@ async def check_vatsim():
         response = requests.get("https://data.vatsim.net/v3/vatsim-data.json", timeout=10)
         response.raise_for_status()
         data = response.json()
- 
-        online = False
+
         for pilot in data.get("pilots", []):
             if pilot.get("cid") == YOUR_CID or pilot.get("callsign", "").upper() == YOUR_CALLSIGN.upper():
-                online = True
-                break
+                callsign = pilot.get("callsign", YOUR_CALLSIGN)
+                aircraft = pilot.get("flight_plan", {}).get("aircraft_short", "Unknown")
+                departure = pilot.get("flight_plan", {}).get("departure", "Unknown")
+                arrival = pilot.get("flight_plan", {}).get("arrival", "Unknown")
+                altitude = pilot.get("altitude", 0)
 
-        channel = bot.get_channel(DISCORD_CHANNEL_ID)
-        if channel:
-            if online and not last_seen:
-                await channel.send(f"🚀 **{YOUR_CALLSIGN}** (CID {YOUR_CID}) has logged onto VATSIM! 🛫")
-                last_seen = True
-            elif not online and last_seen:
-                last_seen = False
+                channel = bot.get_channel(DISCORD_CHANNEL_ID)
+                if channel and not last_seen:
+                    if departure != "Unknown" and arrival != "Unknown":
+                        msg = f"🚀 **{callsign}** is now online!\n" \
+                              f"**Route:** {departure} → {arrival}\n" \
+                              f"**Aircraft:** {aircraft}\n" \
+                              f"**Altitude:** {altitude:,} ft"
+                    else:
+                        msg = f"🚀 **{callsign}** has logged onto VATSIM!"
+
+                    await channel.send(msg)
+                    last_seen = True
+                return  # Found the user
+
+        # Not online
+        if last_seen:
+            last_seen = False
 
     except Exception as e:
         print(f"Error: {e}")
