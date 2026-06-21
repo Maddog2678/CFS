@@ -2,6 +2,7 @@ import discord
 from discord.ext import tasks, commands
 import requests
 import os
+import asyncio
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -11,23 +12,28 @@ YOUR_CID = 1503970
 YOUR_CALLSIGN = "RLTS3"
 DISCORD_CHANNEL_ID = 1492743633982455874
 
+status_message = None
+
 @bot.event
 async def on_ready():
     print(f'{bot.user} is online!')
     check_vatsim.start()
+    # Send initial status message
+    await asyncio.sleep(5)
+    await send_or_update_status()
 
-@tasks.loop(seconds=20)
+@tasks.loop(seconds=15)
 async def check_vatsim():
+    await send_or_update_status()
+
+async def send_or_update_status():
+    global status_message
     try:
         response = requests.get("https://data.vatsim.net/v3/vatsim-data.json", timeout=10)
         data = response.json()
 
-        channel = bot.get_channel(DISCORD_CHANNEL_ID)
-        if not channel:
-            return
-
         rlts_pilots = []
-        my_status = None
+        my_dep = "Offline"
 
         for pilot in data.get("pilots", []):
             cs = pilot.get("callsign", "").upper()
@@ -37,36 +43,33 @@ async def check_vatsim():
                 rlts_pilots.append(f"**{cs}** → {dep}→{arr}")
 
                 if pilot.get("cid") == YOUR_CID and cs == YOUR_CALLSIGN:
-                    my_status = dep
+                    my_dep = dep
 
-        # Create status embed
         embed = discord.Embed(
-            title="🟢 RLTS Fleet Status",
-            color=0x00ff00 if any("RLTS3" in p for p in rlts_pilots) else 0xffaa00
+            title="🟢 RLTS Fleet Live Status",
+            color=0x00ff00 if my_dep != "Offline" else 0xffaa00,
+            timestamp=discord.utils.utcnow()
         )
 
-        if rlts_pilots:
-            embed.description = "\n".join(rlts_pilots)
+        embed.description = "\n".join(rlts_pilots) if rlts_pilots else "No RLTS pilots online."
+        embed.set_footer(text=f"RLTS3 departing: {my_dep} | Updates every 15s")
+
+        channel = bot.get_channel(DISCORD_CHANNEL_ID)
+
+        if status_message:
+            try:
+                await status_message.edit(embed=embed)
+            except:
+                status_message = await channel.send(embed=embed)
         else:
-            embed.description = "No RLTS pilots online."
+            status_message = await channel.send(embed=embed)
 
-        if my_status:
-            embed.set_footer(text=f"RLTS3 is on the ground at {my_status} • Live Update")
-        else:
-            embed.set_footer(text="RLTS3 is offline • Live Update")
-
-        # For now we send it when someone uses !vatsim
-        # (we can't auto-update an old message easily)
-
-    except:
-        pass
+    except Exception as e:
+        print(f"Status update error: {e}")
 
 @bot.command()
 async def vatsim(ctx):
-    """Live RLTS Status"""
-    # The check_vatsim function runs the logic
-    await check_vatsim()
-    # To actually send the embed we'd need to move the embed code here
-    await ctx.send("✅ Checking live status... (use !vatsim again to refresh)")
+    await send_or_update_status()
+    await ctx.send("✅ Live status updated!")
 
 bot.run(os.getenv("TOKEN"))
