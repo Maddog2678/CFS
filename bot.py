@@ -18,7 +18,7 @@ async def on_ready():
     print(f'{bot.user} is online!')
     check_vatsim.start()
 
-@tasks.loop(seconds=15)
+@tasks.loop(seconds=20)
 async def check_vatsim():
     global status_message
     try:
@@ -41,20 +41,15 @@ async def check_vatsim():
                 if pilot.get("cid") == YOUR_CID and cs == YOUR_CALLSIGN:
                     my_dep = dep
 
-        # Dynamic title with color dot
+        # Title + Color
         if any_rlts_online:
             title = "🔵 RLTS Fleet Live Status"
-            color = 0x3498db  # Blue
+            color = 0x3498db
         else:
             title = "🔴 RLTS Fleet Live Status"
-            color = 0xe74c3c  # Red
+            color = 0xe74c3c
 
-        embed = discord.Embed(
-            title=title,
-            color=color,
-            timestamp=discord.utils.utcnow()
-        )
-
+        embed = discord.Embed(title=title, color=color, timestamp=discord.utils.utcnow())
         embed.description = "\n".join(rlts_pilots) if rlts_pilots else "No RLTS pilots online right now."
 
         if my_dep:
@@ -63,21 +58,25 @@ async def check_vatsim():
             embed.set_footer(text="RLTS • No activity")
 
         channel = bot.get_channel(DISCORD_CHANNEL_ID)
+        if not channel:
+            return
 
+        # Try to edit existing message, otherwise send new one
         if status_message:
             try:
                 await status_message.edit(embed=embed)
+                return
             except:
-                status_message = await channel.send(embed=embed)
-        else:
-            status_message = await channel.send(embed=embed)
+                pass  # Message was deleted
+
+        # Send new message if no valid one exists
+        status_message = await channel.send(embed=embed)
 
     except Exception as e:
-        print(f"Update error: {e}")
+        print(f"Error: {e}")
 
 @bot.command()
 async def vatsim(ctx):
-    """Refresh RLTS status"""
     await check_vatsim()
     await ctx.send("✅ Status refreshed!")
 
