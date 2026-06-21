@@ -4,10 +4,10 @@ import requests
 import os
 
 intents = discord.Intents.default()
-intents.message_content = True  # Needed for commands
+intents.message_content = True
 bot = commands.Bot(command_prefix='!', intents=intents)
 
-# === YOUR DETAILS ===
+# === YOUR DETAILS (strict match) ===
 YOUR_CID = 1503970
 YOUR_CALLSIGN = "RLTS3"
 DISCORD_CHANNEL_ID = 1492743633982455874
@@ -31,7 +31,7 @@ async def check_vatsim():
         pilot_data = None
 
         for pilot in data.get("pilots", []):
-            if pilot.get("cid") == YOUR_CID or pilot.get("callsign", "").upper() == YOUR_CALLSIGN.upper():
+            if pilot.get("cid") == YOUR_CID and pilot.get("callsign", "").upper() == YOUR_CALLSIGN.upper():
                 current_online = True
                 pilot_data = pilot
                 break
@@ -41,7 +41,7 @@ async def check_vatsim():
             return
 
         if current_online and not last_online:
-            callsign = pilot_data.get("callsign", YOUR_CALLSIGN)
+            # Just logged on with correct callsign + CID
             fp = pilot_data.get("flight_plan", {})
             dep = fp.get("departure", "Unknown")
             arr = fp.get("arrival", "Unknown")
@@ -49,9 +49,9 @@ async def check_vatsim():
             alt = pilot_data.get("altitude", 0)
 
             if dep != "Unknown" and arr != "Unknown":
-                msg = f"🚀 **{callsign}** is online!\n**Route:** {dep} → {arr}\n**Aircraft:** {ac} | **Alt:** {alt:,} ft"
+                msg = f"🚀 **{YOUR_CALLSIGN}** is online!\n**Route:** {dep} → {arr}\n**Aircraft:** {ac} | **Alt:** {alt:,} ft"
             else:
-                msg = f"🚀 **{callsign}** has logged onto VATSIM!"
+                msg = f"🚀 **{YOUR_CALLSIGN}** has logged onto VATSIM!"
 
             await channel.send(msg)
 
@@ -62,7 +62,6 @@ async def check_vatsim():
 
 @bot.command()
 async def vatsim(ctx):
-    """Manual VATSIM status check"""
     await check_vatsim()
     await ctx.send("✅ Checked VATSIM status!")
 
