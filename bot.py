@@ -26,37 +26,41 @@ async def check_vatsim():
         data = response.json()
 
         rlts_pilots = []
-        my_status = "Offline"
-        my_remarks = ""
+        my_dep = None
+        any_rlts_online = False
 
         for pilot in data.get("pilots", []):
             cs = pilot.get("callsign", "").upper()
             if cs.startswith("RLTS"):
+                any_rlts_online = True
                 fp = pilot.get("flight_plan", {})
                 dep = fp.get("departure", "?")
                 arr = fp.get("arrival", "?")
-                remarks = fp.get("remarks", "")
-
-                line = f"**{cs}** → {dep}→{arr}"
-                if "DISPLAY OPS" in remarks.upper() or "RTA" in remarks.upper():
-                    line += f" | {remarks[:60]}"
-                rlts_pilots.append(line)
+                rlts_pilots.append(f"**{cs}** → {dep}→{arr}")
 
                 if pilot.get("cid") == YOUR_CID and cs == YOUR_CALLSIGN:
-                    my_status = dep
-                    my_remarks = remarks
+                    my_dep = dep
 
-        # Color logic
-        color = 0x3498db if rlts_pilots else 0xe74c3c   # Blue if any RLTS, Red if none
+        # Dynamic title with color dot
+        if any_rlts_online:
+            title = "🔵 RLTS Fleet Live Status"
+            color = 0x3498db  # Blue
+        else:
+            title = "🔴 RLTS Fleet Live Status"
+            color = 0xe74c3c  # Red
 
         embed = discord.Embed(
-            title="🟢 RLTS Fleet Live Status",
+            title=title,
             color=color,
             timestamp=discord.utils.utcnow()
         )
 
         embed.description = "\n".join(rlts_pilots) if rlts_pilots else "No RLTS pilots online right now."
-        embed.set_footer(text=f"RLTS • RLTS3 departing: {my_status}")
+
+        if my_dep:
+            embed.set_footer(text=f"RLTS Departing: {my_dep}")
+        else:
+            embed.set_footer(text="RLTS • No activity")
 
         channel = bot.get_channel(DISCORD_CHANNEL_ID)
 
@@ -75,6 +79,6 @@ async def check_vatsim():
 async def vatsim(ctx):
     """Refresh RLTS status"""
     await check_vatsim()
-    await ctx.send("✅ Status updated!")
+    await ctx.send("✅ Status refreshed!")
 
 bot.run(os.getenv("TOKEN"))
