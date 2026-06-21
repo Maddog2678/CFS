@@ -7,7 +7,7 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix='!', intents=intents)
 
-# === YOUR DETAILS (strict match) ===
+# === YOUR DETAILS ===
 YOUR_CID = 1503970
 YOUR_CALLSIGN = "RLTS3"
 DISCORD_CHANNEL_ID = 1492743633982455874
@@ -41,17 +41,14 @@ async def check_vatsim():
             return
 
         if current_online and not last_online:
-            # Just logged on with correct callsign + CID
             fp = pilot_data.get("flight_plan", {})
             dep = fp.get("departure", "Unknown")
             arr = fp.get("arrival", "Unknown")
-            ac = fp.get("aircraft_short", "Unknown")
-            alt = pilot_data.get("altitude", 0)
 
             if dep != "Unknown" and arr != "Unknown":
-                msg = f"🚀 **{YOUR_CALLSIGN}** is online!\n**Route:** {dep} → {arr}\n**Aircraft:** {ac} | **Alt:** {alt:,} ft"
+                msg = f"✈️ **{YOUR_CALLSIGN}** On the ground at **{dep}** → **{arr}**"
             else:
-                msg = f"🚀 **{YOUR_CALLSIGN}** has logged onto VATSIM!"
+                msg = f"✈️ **{YOUR_CALLSIGN}** is now connected to VATSIM!"
 
             await channel.send(msg)
 
@@ -62,7 +59,29 @@ async def check_vatsim():
 
 @bot.command()
 async def vatsim(ctx):
-    await check_vatsim()
-    await ctx.send("✅ Checked VATSIM status!")
+    """Show all RLTS callsigns currently on VATSIM"""
+    try:
+        response = requests.get("https://data.vatsim.net/v3/vatsim-data.json", timeout=10)
+        data = response.json()
+
+        rlts_pilots = []
+        for pilot in data.get("pilots", []):
+            callsign = pilot.get("callsign", "").upper()
+            if callsign.startswith("RLTS"):
+                fp = pilot.get("flight_plan", {})
+                route = f"{fp.get('departure','?')}→{fp.get('arrival','?')}" if fp.get('departure') else "No flight plan"
+                rlts_pilots.append(f"**{callsign}** - {route}")
+
+        if rlts_pilots:
+            embed = discord.Embed(title="🟢 RLTS Fleet Online", color=0x00ff00)
+            embed.description = "\n".join(rlts_pilots[:15])  # limit to 15
+            embed.set_footer(text=f"Total RLTS online: {len(rlts_pilots)}")
+        else:
+            embed = discord.Embed(title="🟡 No RLTS Online", description="No RLTS callsigns are currently connected.", color=0xffaa00)
+
+        await ctx.send(embed=embed)
+
+    except Exception as e:
+        await ctx.send("❌ Error checking VATSIM.")
 
 bot.run(os.getenv("TOKEN"))
