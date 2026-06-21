@@ -4,6 +4,7 @@ import requests
 import os
 
 intents = discord.Intents.default()
+intents.message_content = True  # Needed for commands
 bot = commands.Bot(command_prefix='!', intents=intents)
 
 # === YOUR DETAILS ===
@@ -40,18 +41,15 @@ async def check_vatsim():
             return
 
         if current_online and not last_online:
-            # Just logged on
             callsign = pilot_data.get("callsign", YOUR_CALLSIGN)
             fp = pilot_data.get("flight_plan", {})
-            departure = fp.get("departure", "Unknown")
-            arrival = fp.get("arrival", "Unknown")
-            aircraft = fp.get("aircraft_short", "Unknown")
-            altitude = pilot_data.get("altitude", 0)
+            dep = fp.get("departure", "Unknown")
+            arr = fp.get("arrival", "Unknown")
+            ac = fp.get("aircraft_short", "Unknown")
+            alt = pilot_data.get("altitude", 0)
 
-            if departure != "Unknown" and arrival != "Unknown":
-                msg = f"🚀 **{callsign}** has logged onto VATSIM!\n" \
-                      f"**Flight:** {departure} → {arrival}\n" \
-                      f"**Aircraft:** {aircraft} | **Altitude:** {altitude:,} ft"
+            if dep != "Unknown" and arr != "Unknown":
+                msg = f"🚀 **{callsign}** is online!\n**Route:** {dep} → {arr}\n**Aircraft:** {ac} | **Alt:** {alt:,} ft"
             else:
                 msg = f"🚀 **{callsign}** has logged onto VATSIM!"
 
@@ -61,5 +59,11 @@ async def check_vatsim():
 
     except Exception as e:
         print(f"Error: {e}")
+
+@bot.command()
+async def vatsim(ctx):
+    """Manual VATSIM status check"""
+    await check_vatsim()
+    await ctx.send("✅ Checked VATSIM status!")
 
 bot.run(os.getenv("TOKEN"))
