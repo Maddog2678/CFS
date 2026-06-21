@@ -1,0 +1,46 @@
+import discord
+from discord.ext import tasks, commands
+import requests
+import os
+
+intents = discord.Intents.default()
+bot = commands.Bot(command_prefix='!', intents=intents)
+
+# === CHANGE THESE ===
+YOUR_CID = 1503970                    # Your VATSIM CID (number)
+YOUR_CALLSIGN = "RLTS3"               # Your callsign
+DISCORD_CHANNEL_ID = 1492743633982455874  # Right-click your channel → Copy ID
+
+last_seen = False
+
+@bot.event
+async def on_ready():
+    print(f'{bot.user} is online!')
+    check_vatsim.start()
+
+@tasks.loop(seconds=30)
+async def check_vatsim():
+    global last_seen
+    try:
+        response = requests.get("https://data.vatsim.net/v3/vatsim-data.json", timeout=10)
+        response.raise_for_status()
+        data = response.json()
+
+        online = False
+        for pilot in data.get("pilots", []):
+            if pilot.get("cid") == YOUR_CID or pilot.get("callsign", "").upper() == YOUR_CALLSIGN.upper():
+                online = True
+                break
+
+        channel = bot.get_channel(DISCORD_CHANNEL_ID)
+        if channel:
+            if online and not last_seen:
+                await channel.send(f"🚀 **{YOUR_CALLSIGN}** (CID {YOUR_CID}) has logged onto VATSIM! 🛫")
+                last_seen = True
+            elif not online and last_seen:
+                last_seen = False
+
+    except Exception as e:
+        print(f"Error: {e}")
+
+bot.run(os.getenv("MTUxODIyNDk5OTMxNDM2MjQ1OA.G5tsY4.5oemBtvucyG_BT_BNY3J0lmmw1cl5UwZcex7Ng"))
