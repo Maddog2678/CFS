@@ -19,11 +19,11 @@ async def on_ready():
     print(f'{bot.user} is online and ready!')
     check_vatsim.start()
 
-@tasks.loop(seconds=30)
+@tasks.loop(seconds=15)   # Fastest safe speed
 async def check_vatsim():
     global last_online
     try:
-        response = requests.get("https://data.vatsim.net/v3/vatsim-data.json", timeout=10)
+        response = requests.get("https://data.vatsim.net/v3/vatsim-data.json", timeout=8)
         response.raise_for_status()
         data = response.json()
 
@@ -59,7 +59,7 @@ async def check_vatsim():
 
 @bot.command()
 async def vatsim(ctx):
-    """Show all RLTS callsigns currently on VATSIM"""
+    """Show all RLTS callsigns currently online"""
     try:
         response = requests.get("https://data.vatsim.net/v3/vatsim-data.json", timeout=10)
         data = response.json()
@@ -70,18 +70,18 @@ async def vatsim(ctx):
             if callsign.startswith("RLTS"):
                 fp = pilot.get("flight_plan", {})
                 route = f"{fp.get('departure','?')}→{fp.get('arrival','?')}" if fp.get('departure') else "No flight plan"
-                rlts_pilots.append(f"**{callsign}** - {route}")
+                rlts_pilots.append(f"**{callsign}** → {route}")
 
         if rlts_pilots:
-            embed = discord.Embed(title="🟢 RLTS Fleet Online", color=0x00ff00)
-            embed.description = "\n".join(rlts_pilots[:15])  # limit to 15
-            embed.set_footer(text=f"Total RLTS online: {len(rlts_pilots)}")
+            embed = discord.Embed(title="🟢 RLTS Pilots Online", color=0x00ff00)
+            embed.description = "\n".join(rlts_pilots)
+            embed.set_footer(text=f"Total online: {len(rlts_pilots)}")
         else:
-            embed = discord.Embed(title="🟡 No RLTS Online", description="No RLTS callsigns are currently connected.", color=0xffaa00)
+            embed = discord.Embed(title="🟡 No RLTS Online", description="No RLTS callsigns are currently flying.", color=0xffaa00)
 
         await ctx.send(embed=embed)
 
-    except Exception as e:
-        await ctx.send("❌ Error checking VATSIM.")
+    except:
+        await ctx.send("❌ Could not reach VATSIM right now.")
 
 bot.run(os.getenv("TOKEN"))
