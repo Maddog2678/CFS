@@ -11,67 +11,52 @@ YOUR_CID = 1503970
 YOUR_CALLSIGN = "RLTS3"
 DISCORD_CHANNEL_ID = 1492743633982455874
 
-status_message = None
+last_online = False
 
 @bot.event
 async def on_ready():
     print(f'{bot.user} is online!')
     check_vatsim.start()
 
-@tasks.loop(seconds=20)
+@tasks.loop(seconds=15)
 async def check_vatsim():
-    global status_message
+    global last_online
     try:
         response = requests.get("https://data.vatsim.net/v3/vatsim-data.json", timeout=10)
         data = response.json()
 
-        rlts_pilots = []
-        my_dep = None
-        any_rlts_online = False
+        current_online = False
+        my_dep = "Unknown"
 
         for pilot in data.get("pilots", []):
-            cs = pilot.get("callsign", "").upper()
-            if cs.startswith("RLTS"):
-                any_rlts_online = True
-                fp = pilot.get("flight_plan", {})
-                dep = fp.get("departure", "?")
-                arr = fp.get("arrival", "?")
-                rlts_pilots.append(f"**{cs}** → {dep}→{arr}")
-
-                if pilot.get("cid") == YOUR_CID and cs == YOUR_CALLSIGN:
-                    my_dep = dep
-
-        title = "🔵 RLTS Fleet Live Status" if any_rlts_online else "🔴 RLTS Fleet Live Status"
-        color = 0x3498db if any_rlts_online else 0xe74c3c
-
-        embed = discord.Embed(title=title, color=color, timestamp=discord.utils.utcnow())
-        embed.description = "\n".join(rlts_pilots) if rlts_pilots else "No RLTS pilots online right now."
-
-        if my_dep:
-            embed.set_footer(text=f"RLTS Departing: {my_dep}")
-        else:
-            embed.set_footer(text="RLTS • No activity")
+            if pilot.get("cid") == YOUR_CID and pilot.get("callsign", "").upper() == YOUR_CALLSIGN.upper():
+                current_online = True
+                my_dep = pilot.get("flight_plan", {}).get("departure", "Unknown")
+                break
 
         channel = bot.get_channel(DISCORD_CHANNEL_ID)
         if not channel:
             return
 
-        # Only send new message if we don't have a valid one
-        if status_message is None:
-            status_message = await channel.send(embed=embed)
-        else:
-            try:
-                await status_message.edit(embed=embed)
-            except:
-                # If edit fails (message deleted), send new one
-                status_message = await channel.send(embed=embed)
+        if current_online and not last_online:
+            embed = discord.Embed(
+                title="🔵 RLTS Fleet Live Status",
+                color=0x3498db,
+                timestamp=discord.utils.utcnow()
+            )
+            embed.description = f"**RLTS3** is now connected to VATSIM!"
+            embed.set_footer(text=f"Departing from: {my_dep}")
+            await channel.send(embed=embed)
+
+        last_online = current_online
 
     except Exception as e:
         print(f"Error: {e}")
 
 @bot.command()
 async def vatsim(ctx):
+    """Manual RLTS check"""
     await check_vatsim()
-    await ctx.send("✅ Status refreshed!")
+    await ctx.send("✅ Checked VATSIM status!")
 
 bot.run(os.getenv("TOKEN"))
