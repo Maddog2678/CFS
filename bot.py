@@ -41,13 +41,8 @@ async def check_vatsim():
                 if pilot.get("cid") == YOUR_CID and cs == YOUR_CALLSIGN:
                     my_dep = dep
 
-        # Title + Color
-        if any_rlts_online:
-            title = "🔵 RLTS Fleet Live Status"
-            color = 0x3498db
-        else:
-            title = "🔴 RLTS Fleet Live Status"
-            color = 0xe74c3c
+        title = "🔵 RLTS Fleet Live Status" if any_rlts_online else "🔴 RLTS Fleet Live Status"
+        color = 0x3498db if any_rlts_online else 0xe74c3c
 
         embed = discord.Embed(title=title, color=color, timestamp=discord.utils.utcnow())
         embed.description = "\n".join(rlts_pilots) if rlts_pilots else "No RLTS pilots online right now."
@@ -61,16 +56,15 @@ async def check_vatsim():
         if not channel:
             return
 
-        # Try to edit existing message, otherwise send new one
-        if status_message:
+        # Only send new message if we don't have a valid one
+        if status_message is None:
+            status_message = await channel.send(embed=embed)
+        else:
             try:
                 await status_message.edit(embed=embed)
-                return
             except:
-                pass  # Message was deleted
-
-        # Send new message if no valid one exists
-        status_message = await channel.send(embed=embed)
+                # If edit fails (message deleted), send new one
+                status_message = await channel.send(embed=embed)
 
     except Exception as e:
         print(f"Error: {e}")
