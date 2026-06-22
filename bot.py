@@ -7,8 +7,9 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix='!', intents=intents)
 
-YOUR_CID = 1503970
-YOUR_CALLSIGN = "RLTS3"
+# Monitored callsigns (you can add more with !add)
+monitored_callsigns = ["RLTS3", "RLTS", "RLTS2"]
+
 DISCORD_CHANNEL_ID = 1492743633982455874
 
 status_message = None
@@ -26,37 +27,27 @@ async def check_vatsim():
         data = response.json()
 
         rlts_pilots = []
-        my_dep = None
-        any_rlts_online = False
+        active = []
 
         for pilot in data.get("pilots", []):
             cs = pilot.get("callsign", "").upper()
-            if cs.startswith("RLTS"):
-                any_rlts_online = True
+            if any(cs.startswith(prefix) for prefix in [c.upper() for c in monitored_callsigns]):
                 fp = pilot.get("flight_plan", {})
                 dep = fp.get("departure", "?")
                 arr = fp.get("arrival", "?")
                 rlts_pilots.append(f"**{cs}** → {dep}→{arr}")
 
-                if pilot.get("cid") == YOUR_CID and cs == YOUR_CALLSIGN:
-                    my_dep = dep
+                if cs in [c.upper() for c in monitored_callsigns]:
+                    active.append(cs)
 
-        # Title with dynamic dot
-        if any_rlts_online:
-            title = "🟢 RLTS Live Status"
-        else:
-            title = "🔴 RLTS Live Status"
+        title = "🟢 RLTS Live Status" if active else "🔴 RLTS Live Status"
+        color = 0x00ff00 if active else 0xff0000
 
-        embed = discord.Embed(
-            title=title,
-            color=0x00ff00 if any_rlts_online else 0xff0000,   # Green or Red
-            timestamp=discord.utils.utcnow()
-        )
-
+        embed = discord.Embed(title=title, color=color, timestamp=discord.utils.utcnow())
         embed.description = "\n".join(rlts_pilots) if rlts_pilots else "No RLTS pilots online right now."
 
-        if my_dep:
-            embed.set_footer(text=f"RLTS Departing: {my_dep}")
+        if active:
+            embed.set_footer(text=f"Active: {', '.join(active)}")
         else:
             embed.set_footer(text="RLTS • No activity")
 
@@ -70,7 +61,17 @@ async def check_vatsim():
             status_message = await channel.send(embed=embed)
 
     except Exception as e:
-        print(f"Update error: {e}")
+        print(f"Error: {e}")
+
+@bot.command()
+async def add(ctx, callsign: str):
+    """Add a callsign to monitor. Example: !add RLTS4"""
+    callsign = callsign.upper()
+    if callsign not in monitored_callsigns:
+        monitored_callsigns.append(callsign)
+        await ctx.send(f"✅ Added **{callsign}** to monitoring list!")
+    else:
+        await ctx.send(f"**{callsign}** is already being monitored.")
 
 @bot.command()
 async def vatsim(ctx):
