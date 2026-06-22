@@ -16,6 +16,8 @@ PILOTS = [
 
 DISCORD_CHANNEL_ID = 1492743633982455874
 
+status_message = None
+
 @bot.event
 async def on_ready():
     print(f'{bot.user} is online!')
@@ -23,12 +25,12 @@ async def on_ready():
 
 @tasks.loop(seconds=15)
 async def check_vatsim():
+    global status_message
     try:
         response = requests.get("https://data.vatsim.net/v3/vatsim-data.json", timeout=10)
         data = response.json()
 
         rlts_pilots = []
-
         for pilot_info in PILOTS:
             cid = pilot_info["cid"]
             callsign = pilot_info["callsign"]
@@ -42,30 +44,27 @@ async def check_vatsim():
                     rlts_pilots.append(f"**{name}** → {dep}→{arr}")
                     break
 
-        # Dynamic title and color
-        if rlts_pilots:
-            title = "🟢 RLTS Live Status"
-            color = 0x00ff00
-        else:
-            title = "🔴 RLTS Live Status"
-            color = 0xff0000
+        title = "🟢 RLTS Live Status" if rlts_pilots else "🔴 RLTS Live Status"
+        color = 0x00ff00 if rlts_pilots else 0xff0000
 
         embed = discord.Embed(title=title, color=color, timestamp=discord.utils.utcnow())
         embed.description = "\n".join(rlts_pilots) if rlts_pilots else "No RLTS pilots online right now."
-        embed.set_footer(text="Live Update • Every 15 seconds")
+        embed.set_footer(text="Live Update")
 
         channel = bot.get_channel(DISCORD_CHANNEL_ID)
         if not channel:
             return
 
-        # Delete old messages first
-        async for message in channel.history(limit=10):
-            if message.author == bot.user and message.embeds:
-                if "RLTS Live Status" in message.embeds[0].title:
-                    await message.delete()
+        # Try to edit existing message
+        if status_message:
+            try:
+                await status_message.edit(embed=embed)
+                return
+            except:
+                pass  # Message was deleted
 
-        # Send new one
-        await channel.send(embed=embed)
+        # Send new one if no valid message exists
+        status_message = await channel.send(embed=embed)
 
     except Exception as e:
         print(f"Error: {e}")
